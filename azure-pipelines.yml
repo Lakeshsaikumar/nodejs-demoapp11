@@ -16,23 +16,35 @@ stages:
 
     steps:
     - checkout: self
+      clean: true
 
     - task: NodeTool@0
       inputs:
         versionSpec: '18.x'
-      displayName: 'Install Node 18'
+      displayName: 'Install Node.js 18'
 
+    # Debug: verify files
+    - script: |
+        echo "Root folder:"
+        ls -la
+        echo "src folder:"
+        ls -la src
+      displayName: 'Debug: List Files'
+
+    # Install dependencies
     - script: npm install
-      workingDirectory: '$(Build.SourcesDirectory)'
+      workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Install Dependencies'
 
+    # Build (if applicable)
     - script: npm run build --if-present
-      workingDirectory: '$(Build.SourcesDirectory)'
+      workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Run Build Script'
 
+    # Publish artifact
     - task: PublishPipelineArtifact@1
       inputs:
-        targetPath: '$(Build.SourcesDirectory)'
+        targetPath: '$(Build.SourcesDirectory)/src'
         artifactName: 'nodeapp'
       displayName: 'Publish Build Artifact'
 
@@ -51,9 +63,11 @@ stages:
       name: 'Java_Deployment'
 
     steps:
+    # Download artifact from Build stage
     - download: current
       artifact: 'nodeapp'
 
+    # Copy files to remote server
     - task: CopyFilesOverSSH@0
       displayName: 'Copy Files to Server'
       inputs:
@@ -62,6 +76,7 @@ stages:
         contents: '**/*'
         targetFolder: '/home/itadmin/nodeapp'
 
+    # Install & start/restart Node.js app
     - task: SSH@0
       displayName: 'Install & Restart App'
       inputs:
