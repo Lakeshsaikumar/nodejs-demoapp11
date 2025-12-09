@@ -1,5 +1,5 @@
 trigger:
-- main
+- main   # your code is in the main branch
 
 stages:
 
@@ -23,6 +23,7 @@ stages:
         versionSpec: '18.x'
       displayName: 'Install Node.js 18'
 
+    # Debug: verify files
     - script: |
         echo "Root folder:"
         ls -la
@@ -30,14 +31,17 @@ stages:
         ls -la src
       displayName: 'Debug: List Files'
 
+    # Install dependencies for build
     - script: npm install
       workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Install Dependencies'
 
+    # Build step (optional)
     - script: npm run build --if-present
       workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Run Build Script'
 
+    # Publish artifact (flattened)
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: '$(Build.SourcesDirectory)/src'
@@ -46,6 +50,7 @@ stages:
 
 # =========================
 # Stage 2: Deploy
+# =========================
 - stage: Deploy
   displayName: 'Deploy Node App'
   dependsOn: Build
@@ -56,9 +61,11 @@ stages:
       name: 'Java_Deployment'
 
     steps:
+    # Download artifact from build stage
     - download: current
       artifact: 'nodeapp'
 
+    # Copy artifact files to remote server (flattened)
     - task: CopyFilesOverSSH@0
       displayName: 'Copy Files to Server'
       inputs:
@@ -67,6 +74,7 @@ stages:
         contents: '**/*'
         targetFolder: '/home/itadmin/nodeapp'
 
+    # Install dependencies and start/restart Node.js app
     - task: SSH@0
       displayName: 'Install & Restart App'
       inputs:
@@ -75,4 +83,4 @@ stages:
         commands: |
           cd /home/itadmin/nodeapp
           npm install --production
-          pm2 restart nodeapp || pm2 start server.js --name nodeapp
+          pm2 restart nodeapp || pm2 start server.mjs --name nodeapp
