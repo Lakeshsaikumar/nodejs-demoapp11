@@ -74,7 +74,7 @@ stages:
         sshEndpoint: 'Java_YAML'
         runOptions: 'commands'
         commands: |
-          cd /home/itadmin/nodeapp && \
-          npm install --omit=dev && \
-          pkill -f server.mjs || true && \
+          cd /home/itadmin/nodeapp && 
+          npm install --omit=dev && 
+          pkill -f server.mjs || true && 
           nohup node server.mjs > server.log 2>&1 &
