@@ -23,7 +23,6 @@ stages:
         versionSpec: '18.x'
       displayName: 'Install Node.js 18'
 
-    # Debug: verify files
     - script: |
         echo "Root folder:"
         ls -la
@@ -31,17 +30,14 @@ stages:
         ls -la src
       displayName: 'Debug: List Files'
 
-    # Install dependencies for build
     - script: npm install
       workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Install Dependencies'
 
-    # Build step (optional)
     - script: npm run build --if-present
       workingDirectory: '$(Build.SourcesDirectory)/src'
       displayName: 'Run Build Script'
 
-    # Publish artifact (flattened)
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: '$(Build.SourcesDirectory)/src'
@@ -49,12 +45,11 @@ stages:
       displayName: 'Publish Build Artifact'
 
 # =========================
-# Stage 2: Deploy (Manual)
+# Stage 2: Deploy (Automatic)
 # =========================
 - stage: Deploy
   displayName: 'Deploy Node App'
   dependsOn: Build
-  condition: and(succeeded(), eq(variables['DeployManualTrigger'], 'true'))
   jobs:
   - job: DeployJob
     displayName: 'Deploy to Remote Server'
@@ -62,11 +57,9 @@ stages:
       name: 'Java_Deployment'
 
     steps:
-    # Download artifact from build stage
     - download: current
       artifact: 'nodeapp'
 
-    # Copy artifact files to remote server (flattened)
     - task: CopyFilesOverSSH@0
       displayName: 'Copy Files to Server'
       inputs:
@@ -75,7 +68,6 @@ stages:
         contents: '**/*'
         targetFolder: '/home/itadmin/nodeapp'
 
-    # Install dependencies and start/restart Node.js app using nohup
     - task: SSH@0
       displayName: 'Install & Restart App with nohup'
       inputs:
