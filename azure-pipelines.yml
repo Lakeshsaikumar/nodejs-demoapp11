@@ -1,5 +1,5 @@
 trigger:
-- main   # your code is in the main branch
+- main   # auto-build on main branch
 
 stages:
 
@@ -49,11 +49,12 @@ stages:
       displayName: 'Publish Build Artifact'
 
 # =========================
-# Stage 2: Deploy
+# Stage 2: Deploy (Manual)
 # =========================
 - stage: Deploy
   displayName: 'Deploy Node App'
   dependsOn: Build
+  condition: and(succeeded(), eq(variables['DeployManualTrigger'], 'true'))
   jobs:
   - job: DeployJob
     displayName: 'Deploy to Remote Server'
@@ -74,13 +75,14 @@ stages:
         contents: '**/*'
         targetFolder: '/home/itadmin/nodeapp'
 
-    # Install dependencies and start/restart Node.js app
+    # Install dependencies and start/restart Node.js app using nohup
     - task: SSH@0
-      displayName: 'Install & Restart App'
+      displayName: 'Install & Restart App with nohup'
       inputs:
         sshEndpoint: 'Java_YAML'
         runOptions: 'commands'
         commands: |
-          cd /home/itadmin/nodeapp
-          npm install --production
-          pm2 restart nodeapp || pm2 start server.mjs --name nodeapp
+          cd /home/itadmin/nodeapp && \
+          npm install --omit=dev && \
+          pkill -f server.mjs || true && \
+          nohup node server.mjs > server.log 2>&1 &
