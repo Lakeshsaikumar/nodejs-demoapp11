@@ -1,0 +1,91 @@
+trigger:
+- master
+
+stages:
+
+# =========================
+# Stage 1: Build
+# =========================
+- stage: Build
+  displayName: 'Build Node.js App'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build Node Project'
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - checkout: self
+
+    # Install Node.js
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.x'
+      displayName: 'Install Node 18'
+
+    # Install dependencies
+    - script: |
+        npm install
+      displayName: 'Install Dependencies'
+
+    # Optional build (React/Vue/etc)
+    - script: |
+        npm run build --if-present
+      displayName: 'Run Build Script'
+
+    # Debug listing
+    - script: |
+        echo "Listing build files:"
+        ls -lh
+      displayName: 'Debug: List Files'
+
+    # Publish build output as pipeline artifact
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Build.SourcesDirectory)'
+        artifactName: 'nodeapp'
+      displayName: 'Publish Build Artifact'
+
+
+# =========================
+# Stage 2: Deploy
+# =========================
+- stage: Deploy
+  displayName: 'Deploy Node App'
+  dependsOn: Build
+
+  jobs:
+  - job: DeployJob
+    displayName: 'Deploy to Remote Server'
+    pool:
+      name: 'Java_Deployment'    # ✔ using your pool
+
+    steps:
+    - download: current
+      artifact: 'nodeapp'
+
+    # Copy project to server via SSH
+    - task: CopyFilesOverSSH@0
+      displayName: 'Copy Files to Server'
+      inputs:
+        sshEndpoint: 'Java_YAML'   # ✔ using your SSH endpoint
+        sourceFolder: '$(Pipeline.Workspace)/nodeapp'
+        contents: |
+          **/*
+          !node_modules/**/*
+        targetFolder: '/home/itadmin/nodeapp'
+
+    # Install & restart Node app on remote host
+    - task: SSH@0
+      displayName: 'Install & Restart App'
+      inputs:
+        sshEndpoint: 'Java_YAML'   # ✔ same endpoint
+        runOptions: 'commands'
+        commands: |
+          cd /home/itadmin/nodeapp
+          
+          # Install production deps
+          npm install --production
+          
+          # Run or restart using PM2
+          pm2 restart nodeapp || pm2 start server.js --name nodeapp
