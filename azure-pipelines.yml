@@ -69,12 +69,32 @@ stages:
         targetFolder: '/home/itadmin/nodeapp'
 
     - task: SSH@0
-      displayName: 'Install & Restart App with nohup'
+      displayName: 'Install & Restart Node.js App (port 3000)'
       inputs:
         sshEndpoint: 'Java_YAML'
-        runOptions: 'commands'
-        commands: |
-          cd /home/itadmin/nodeapp
-          npm install --omit=dev
-          pkill -f server.mjs || true
-          nohup node server.mjs > server.log 2>&1 &
+        runOptions: 'inline'
+        inline: |
+          #!/bin/bash
+          APP_DIR="/home/itadmin/nodeapp"
+          APP_FILE="server.mjs"
+          LOG_FILE="server.log"
+
+          # Navigate to app directory
+          cd "$APP_DIR" || { echo "App directory not found!"; exit 1; }
+
+          # Stop any running app
+          echo "Stopping existing Node.js app..."
+          pkill -f "$APP_FILE" || echo "No running process found."
+
+          # Install dependencies
+          echo "Installing dependencies..."
+          npm install
+
+          # Start the app in background (port 3000)
+          echo "Starting Node.js app in background (port 3000)..."
+          nohup node "$APP_FILE" > "$LOG_FILE" 2>&1 &
+
+          # Verify
+          echo "App started. Logging to $LOG_FILE"
+          ps -ef | grep "$APP_FILE" | grep -v grep
+
