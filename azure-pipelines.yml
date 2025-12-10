@@ -1,11 +1,9 @@
 trigger:
-- main   # auto-build on main branch
+  branches:
+    include:
+    - main
 
 stages:
-
-# =========================
-# Stage 1: Build
-# =========================
 - stage: Build
   displayName: 'Build Node.js App'
   jobs:
@@ -13,30 +11,28 @@ stages:
     displayName: 'Build Node Project'
     pool:
       vmImage: 'ubuntu-latest'
-
     steps:
-    - checkout: self
-      clean: true
+    - task: 6d15af64-176c-496d-b583-fd2ae21d4df4@1
+      inputs:
+        repository: self
+        clean: true
 
     - task: NodeTool@0
       inputs:
         versionSpec: '18.x'
       displayName: 'Install Node.js 18'
 
-    - script: |
-        echo "Root folder:"
-        ls -la
-        echo "src folder:"
-        ls -la src
-      displayName: 'Debug: List Files'
-
-    - script: npm install
-      workingDirectory: '$(Build.SourcesDirectory)/src'
+    - task: CmdLine@2
       displayName: 'Install Dependencies'
+      inputs:
+        script: npm install
+        workingDirectory: '$(Build.SourcesDirectory)/src'
 
-    - script: npm run build --if-present
-      workingDirectory: '$(Build.SourcesDirectory)/src'
+    - task: CmdLine@2
       displayName: 'Run Build Script'
+      inputs:
+        script: npm run build --if-present
+        workingDirectory: '$(Build.SourcesDirectory)/src'
 
     - task: PublishPipelineArtifact@1
       inputs:
@@ -44,21 +40,20 @@ stages:
         artifactName: 'nodeapp'
       displayName: 'Publish Build Artifact'
 
-# =========================
-# Stage 2: Deploy
-# =========================
 - stage: Deploy
   displayName: 'Deploy Node App'
-  dependsOn: Build
+  dependsOn:
+  - Build
   jobs:
   - job: DeployJob
     displayName: 'Deploy to Remote Server'
     pool:
       name: 'Java_Deployment'
-
     steps:
-    - download: current
-      artifact: 'nodeapp'
+    - task: 30f35852-3f7e-4c0c-9a88-e127b4f97211@1
+      inputs:
+        alias: current
+        artifact: 'nodeapp'
 
     - task: CopyFilesOverSSH@0
       displayName: 'Copy Files to Server'
@@ -69,7 +64,7 @@ stages:
         targetFolder: '/home/itadmin/nodeapp'
 
     - task: SSH@0
-      displayName: 'Install & Restart Node.js App (port 3000)'
+      displayName: 'Start Node.js App (port 3000)'
       inputs:
         sshEndpoint: 'Java_YAML'
         runOptions: 'inline'
@@ -86,10 +81,6 @@ stages:
           echo "Stopping existing Node.js app..."
           pkill -f "$APP_FILE" || echo "No running process found."
 
-          # Install dependencies
-          echo "Installing dependencies..."
-          npm install
-
           # Start the app in background (port 3000)
           echo "Starting Node.js app in background (port 3000)..."
           nohup node "$APP_FILE" > "$LOG_FILE" 2>&1 &
@@ -97,4 +88,3 @@ stages:
           # Verify
           echo "App started. Logging to $LOG_FILE"
           ps -ef | grep "$APP_FILE" | grep -v grep
-
