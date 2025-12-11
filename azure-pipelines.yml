@@ -1,60 +1,76 @@
 trigger:
   branches:
     include:
-    - main
+      - main
 
+# --------------------------------------
+# STAGE 1 – BUILD
+# --------------------------------------
 stages:
 - stage: Build
   displayName: 'Build Node.js App'
+
   jobs:
   - job: BuildJob
     displayName: 'Build Node Project'
     pool:
       vmImage: 'ubuntu-latest'
-    steps:
-    - task: 6d15af64-176c-496d-b583-fd2ae21d4df4@1
-      inputs:
-        repository: self
-        clean: true
 
+    steps:
+    # Checkout source code
+    - checkout: self
+      clean: true
+
+    # Install Node.js
     - task: NodeTool@0
       inputs:
         versionSpec: '18.x'
       displayName: 'Install Node.js 18'
 
+    # Install dependencies
     - task: CmdLine@2
       displayName: 'Install Dependencies'
       inputs:
         script: npm install
         workingDirectory: '$(Build.SourcesDirectory)/src'
 
+    # Build project (if build script exists)
     - task: CmdLine@2
       displayName: 'Run Build Script'
       inputs:
         script: npm run build --if-present
         workingDirectory: '$(Build.SourcesDirectory)/src'
 
+    # Publish built files
     - task: PublishPipelineArtifact@1
+      displayName: 'Publish Build Artifact'
       inputs:
         targetPath: '$(Build.SourcesDirectory)/src'
         artifactName: 'nodeapp'
-      displayName: 'Publish Build Artifact'
 
+
+# --------------------------------------
+# STAGE 2 – DEPLOY
+# --------------------------------------
 - stage: Deploy
   displayName: 'Deploy Node App'
-  dependsOn:
-  - Build
+  dependsOn: Build
+
   jobs:
   - job: DeployJob
     displayName: 'Deploy to Remote Server'
     pool:
       name: 'Java_Deployment'
-    steps:
-    - task: 30f35852-3f7e-4c0c-9a88-e127b4f97211@1
-      inputs:
-        alias: current
-        artifact: 'nodeapp'
 
+    steps:
+    # Download build artifact
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Artifact'
+      inputs:
+        artifact: 'nodeapp'
+        path: '$(Pipeline.Workspace)/nodeapp'
+
+    # Copy files to remote Linux server
     - task: CopyFilesOverSSH@0
       displayName: 'Copy Files to Server'
       inputs:
@@ -63,28 +79,26 @@ stages:
         contents: '**/*'
         targetFolder: '/home/itadmin/nodeapp'
 
+    # Start Node.js server
     - task: SSH@0
       displayName: 'Start Node.js App (port 3000)'
       inputs:
         sshEndpoint: 'Java_YAML'
-        runOptions: 'inline'
+        runOptions: inline
         inline: |
           #!/bin/bash
           APP_DIR="/home/itadmin/nodeapp"
           APP_FILE="server.mjs"
           LOG_FILE="server.log"
 
-          # Navigate to app directory
           cd "$APP_DIR" || { echo "App directory not found!"; exit 1; }
 
-          # Stop any running app
           echo "Stopping existing Node.js app..."
           pkill -f "$APP_FILE" || echo "No running process found."
 
-          # Start the app in background (port 3000)
-          echo "Starting Node.js app in background (port 3000)..."
+          echo "Starting Node.js app in the background..."
           nohup node "$APP_FILE" > "$LOG_FILE" 2>&1 &
 
-          # Verify
           echo "App started. Logging to $LOG_FILE"
           ps -ef | grep "$APP_FILE" | grep -v grep
+
