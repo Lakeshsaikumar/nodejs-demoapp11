@@ -77,7 +77,7 @@ stages:
         sshEndpoint: 'Java_YAML'
         sourceFolder: '$(Pipeline.Workspace)/nodeapp'
         contents: '**/*'
-        targetFolder: '/home/itadmin/nodeapp'
+        targetFolder: '/home/itadmin/nodesjsapp1'
 
     # Start Node.js server
     - task: SSH@0
@@ -87,7 +87,7 @@ stages:
         runOptions: inline
         inline: |
           #!/bin/bash
-          APP_DIR="/home/itadmin/nodeapp"
+          APP_DIR="/home/itadmin/nodesjsapp1"
           APP_FILE="server.mjs"
           LOG_FILE="server.log"
 
